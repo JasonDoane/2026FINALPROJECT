@@ -14,11 +14,20 @@
 /* CSS Reset and Game Container Styling */
 html,body { 
   margin:0; /* Remove default browser margins */
+  padding:0; /* Remove default browser padding */
   background:#000; /* Black background for full-screen experience */
+  overflow:hidden; /* Prevent scrollbars */
 }
 #game-container { 
-  width:100vw; /* Full viewport width */
-  height:100vh; /* Full viewport height */
+  width:800px; /* Fixed width */
+  height:600px; /* Fixed height */
+  position:absolute; /* Allow positioning */
+  top:50%; /* Center vertically */
+  left:50%; /* Center horizontally */
+  transform:translate(-50%, -50%); /* Offset for perfect centering */
+  border:3px solid white; /* White border */
+  box-sizing:border-box; /* Include border in dimensions */
+  overflow:hidden; /* Prevent any overflow */
 }
 </style>
 </head>

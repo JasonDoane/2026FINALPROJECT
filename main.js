@@ -52,19 +52,16 @@ function create() {
   g.generateTexture('bullet', 6, 12);
   g.clear();
 
-  // Generate colored enemy textures
-  this.enemyTextures = [];
-  COLORS.forEach((color, index) => {
-    g.fillStyle(color);
-    g.fillCircle(10, 10, 10);
-    const textureName = `enemy_${index}`;
-    g.generateTexture(textureName, 20, 20);
-    this.enemyTextures.push(textureName);
-    g.clear();
-  });
+  // Generate purple enemy texture
+  g.fillStyle(0x800080); // Purple
+  g.fillCircle(10, 10, 10);
+  g.generateTexture('enemy_purple', 20, 20);
+  g.clear();
+  
+  this.enemyTextures = ['enemy_purple']; // Only purple texture
   
   // Generate triangle enemy texture
-  g.fillStyle(0xffffff);
+  g.fillStyle(0x00ff00); // Green
   g.fillTriangle(10, 0, 0, 20, 20, 20); // Triangle pointing up
   g.generateTexture('triangle_enemy', 20, 20);
   g.clear();
@@ -82,8 +79,25 @@ function create() {
   g.generateTexture('pentagon_health', 20, 20);
   g.clear();
   
+  // Generate hexagon enemy texture
+  g.fillStyle(0xff0000); // Red
+  g.beginPath();
+  g.moveTo(10, 0); // Top point
+  g.lineTo(17, 5); // Top right
+  g.lineTo(17, 15); // Bottom right
+  g.lineTo(10, 20); // Bottom point
+  g.lineTo(3, 15); // Bottom left
+  g.lineTo(3, 5); // Top left
+  g.closePath();
+  g.fillPath();
+  g.generateTexture('hexagon_enemy', 20, 20);
+  g.clear();
+  
   // Track triangle enemies
   this.triangleEnemies = this.physics.add.group({ maxSize: 50 });
+  
+  // Track hexagon enemies
+  this.hexagonEnemies = this.physics.add.group({ maxSize: 30 });
   
   // Track pentagon health pickups
   this.pentagonPickups = this.physics.add.group({ maxSize: 10 });
@@ -163,13 +177,24 @@ function create() {
     callback: () => spawnEnemy.call(this)
   });
   
-  // Triangle enemy spawner (only when score >= 12)
+  // Triangle enemy spawner (only when score >= 15)
   this.time.addEvent({
-    delay: 2000, // Spawn triangle every 2 seconds
+    delay: 1500, // Spawn triangle every 1.5 seconds (more common)
     loop: true,
     callback: () => {
-      if (this.score >= 12) {
+      if (this.score >= 15) {
         spawnTriangleEnemy.call(this);
+      }
+    }
+  });
+  
+  // Hexagon enemy spawner (only when score >= 20)
+  this.time.addEvent({
+    delay: 3000, // Spawn hexagon every 3 seconds
+    loop: true,
+    callback: () => {
+      if (this.score >= 20) {
+        spawnHexagonEnemy.call(this);
       }
     }
   });
@@ -201,6 +226,7 @@ function create() {
   // Add player-enemy collision
   this.physics.add.overlap(this.player, this.enemies, playerHitEnemy, null, this);
   this.physics.add.overlap(this.player, this.triangleEnemies, playerHitEnemy, null, this);
+  this.physics.add.overlap(this.player, this.hexagonEnemies, playerHitEnemy, null, this);
   
   // Add player-pentagon collision for health restoration
   this.physics.add.overlap(this.player, this.pentagonPickups, collectPentagon, null, this);
@@ -212,6 +238,9 @@ function create() {
 }
 
 function update() {
+  // If game is over, don't process any input or updates
+  if (this.gameOver) return;
+  
   const speed = 200;
   
   // Update triangle enemies
@@ -221,54 +250,58 @@ function update() {
     // Initialize if needed
     if (!triangle.currentDirection) {
       triangle.distanceTraveled = 0;
-      triangle.targetDistance = 1000;
+      triangle.targetDistance = Phaser.Math.Between(1200, 3000); // 1200-3000px
       
-      // Choose initial direction
-      const dx = this.player.x - triangle.x;
-      const dy = this.player.y - triangle.y;
-      
-      if (Math.abs(dx) > Math.abs(dy)) {
-        triangle.currentDirection = dx > 0 ? 'right' : 'left';
-      } else {
-        triangle.currentDirection = dy > 0 ? 'down' : 'up';
-      }
+      // Choose random direction (no player tracking)
+      const directions = ['up', 'down', 'left', 'right'];
+      triangle.currentDirection = Phaser.Utils.Array.GetRandom(directions);
     }
     
     // Check if traveled enough distance
     if (triangle.distanceTraveled >= triangle.targetDistance) {
-      // Reset distance and choose new direction
+      // Reset distance and choose new random direction
       triangle.distanceTraveled = 0;
-      triangle.targetDistance = 1000;
+      triangle.targetDistance = Phaser.Math.Between(1200, 3000); // 1200-3000px
       
-      // Choose new direction based on player position
-      const dx = this.player.x - triangle.x;
-      const dy = this.player.y - triangle.y;
-      
-      if (Math.abs(dx) > Math.abs(dy)) {
-        triangle.currentDirection = dx > 0 ? 'right' : 'left';
-      } else {
-        triangle.currentDirection = dy > 0 ? 'down' : 'up';
-      }
+      // Choose new random direction
+      const directions = ['up', 'down', 'left', 'right'];
+      triangle.currentDirection = Phaser.Utils.Array.GetRandom(directions);
     }
     
-    // Move in current direction
+    // Move in current direction (faster speed)
     switch(triangle.currentDirection) {
       case 'right':
-        triangle.setVelocity(180, 0);
+        triangle.setVelocity(360, 0);
         break;
       case 'left':
-        triangle.setVelocity(-180, 0);
+        triangle.setVelocity(-360, 0);
         break;
       case 'down':
-        triangle.setVelocity(0, 180);
+        triangle.setVelocity(0, 360);
         break;
       case 'up':
-        triangle.setVelocity(0, -180);
+        triangle.setVelocity(0, -360);
         break;
     }
     
     // Track distance traveled
-    triangle.distanceTraveled += 180; // Since moving 180px per frame
+    triangle.distanceTraveled += 360; // Since moving 360px per frame
+  });
+  
+  // Update hexagon enemies (track player)
+  this.hexagonEnemies.children.each(hexagon => {
+    if (!hexagon.active) return;
+    
+    // Calculate direction to player
+    const dx = this.player.x - hexagon.x;
+    const dy = this.player.y - hexagon.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    if (distance > 0) {
+      // Normalize and apply speed (slower than triangles but persistent)
+      const speed = 150;
+      hexagon.setVelocity((dx / distance) * speed, (dy / distance) * speed);
+    }
   });
   
   // Use interpolation for smoother movement
@@ -381,6 +414,16 @@ function update() {
     }
   });
   
+  // cleanup far hexagon enemies
+  this.hexagonEnemies.children.each(e => {
+    if (!e.active) return;
+    const dx = e.x - this.player.x;
+    const dy = e.y - this.player.y;
+    if (dx*dx + dy*dy > 2000*2000) {
+      e.setActive(false).setVisible(false);
+    }
+  });
+  
   // cleanup far pentagon pickups
   this.pentagonPickups.children.each(p => {
     if (!p.active) return;
@@ -415,25 +458,38 @@ function spawnTriangleEnemy() {
   
   triangle.setActive(true).setVisible(true);
   
-  // Start color changing effect
+  // Set initial movement properties
   triangle.distanceTraveled = 0;
-  triangle.targetDistance = 1000; // Travel 1000px before changing direction
+  triangle.targetDistance = Phaser.Math.Between(1200, 3000); // 1200-3000px
   triangle.currentDirection = null;
+}
+
+function spawnHexagonEnemy() {
+  if (this.hexagonEnemies.countActive(true) > 5) return;
   
-  this.time.addEvent({
-    delay: 200,
-    loop: true,
-    callback: () => {
-      if (triangle.active) {
-        const randomColor = Phaser.Utils.Array.GetRandom(COLORS);
-        triangle.tint = randomColor;
-      }
-    }
-  });
+  const playerX = this.player.x;
+  const playerY = this.player.y;
+  const minDistance = 300; // Spawn further away
+  const spawnRadius = 1200;
+  
+  // Find valid spawn position
+  let angle, distance, x, y;
+  do {
+    angle = Phaser.Math.Between(0, 360);
+    distance = Phaser.Math.Between(minDistance, spawnRadius);
+    
+    x = playerX + Math.cos(angle * Math.PI / 180) * distance;
+    y = playerY + Math.sin(angle * Math.PI / 180) * distance;
+  } while (Math.sqrt((x - playerX) * (x - playerX) + (y - playerY) * (y - playerY)) < minDistance);
+  
+  const hexagon = this.hexagonEnemies.get(x, y, 'hexagon_enemy');
+  if (!hexagon) return;
+  
+  hexagon.setActive(true).setVisible(true);
+  hexagon.setVelocity(0); // Will be updated in update function
 }
 
 function spawnPentagonPickup() {
-  console.log('Attempting to spawn pentagon pickup');
   if (this.pentagonPickups.countActive(true) > 3) return;
   
   const playerX = this.player.x;
@@ -452,14 +508,10 @@ function spawnPentagonPickup() {
   } while (Math.sqrt((x - playerX) * (x - playerX) + (y - playerY) * (y - playerY)) < minDistance);
   
   const pentagon = this.pentagonPickups.get(x, y, 'pentagon_health');
-  if (!pentagon) {
-    console.log('Failed to get pentagon from pool');
-    return;
-  }
+  if (!pentagon) return;
   
   pentagon.setActive(true).setVisible(true);
   pentagon.setVelocity(0); // Stationary pickup
-  console.log('Pentagon spawned successfully at', x, y);
 }
 
 function collectPentagon(player, pentagon) {
@@ -506,14 +558,14 @@ function spawnEnemy() {
       y = playerY + Math.sin(angle * Math.PI / 180) * distance - 500; // Bias toward top
     } while (Math.sqrt((x - playerX) * (x - playerX) + (y - playerY) * (y - playerY)) < minDistance);
     
-    // Pick random enemy texture
-    const randomTexture = Phaser.Utils.Array.GetRandom(this.enemyTextures);
-    const e = this.enemies.get(x, y, randomTexture);
+    const e = this.enemies.get(x, y, 'enemy_purple');
     if (!e) return;
 
     e.setActive(true).setVisible(true);
-    // Random movement in all directions: -200 to 200 for both X and Y
-    e.setVelocity(Phaser.Math.Between(-200,200), Phaser.Math.Between(-200,200));
+  // Speed increases by 100 every 20 score points indefinitely
+  const speedIncrease = Math.floor(this.score / 20) * 100;
+  const speed = 200 + speedIncrease;
+  e.setVelocity(Phaser.Math.Between(-speed, speed), Phaser.Math.Between(-speed, speed));
 }
 
 function hitEnemy(bullet, enemy) {
@@ -544,6 +596,100 @@ function playerHitEnemy(player, enemy) {
   // Remove a heart
   if (this.health >= 0 && this.health < this.hearts.length) {
     this.hearts[this.health].setVisible(false);
+  }
+  
+  // Check for game over
+  if (this.health <= 0) {
+    // Stop all game activity
+    this.time.paused = true;
+    this.player.setVelocity(0);
+    this.player.setAcceleration(0);
+    this.gameOver = true; // Add game over flag
+    
+    // Create game over screen
+    const gameOverScreen = this.add.graphics();
+    gameOverScreen.fillStyle(0x000000, 0.8); // Semi-transparent black background
+    gameOverScreen.fillRect(0, 0, WIDTH, HEIGHT);
+    gameOverScreen.setScrollFactor(0); // Fixed to camera
+    gameOverScreen.setDepth(1000);
+    
+    // Game over text
+    const gameOverText = this.add.text(WIDTH/2, HEIGHT/2 - 50, 'GAME OVER', {
+      fontSize: '48px',
+      fill: '#ff0000',
+      fontFamily: 'Arial',
+      fontStyle: 'bold'
+    });
+    gameOverText.setOrigin(0.5);
+    gameOverText.setScrollFactor(0); // Fixed to camera
+    gameOverText.setDepth(1001);
+    
+    // Final score text
+    const finalScoreText = this.add.text(WIDTH/2, HEIGHT/2 + 20, 'Final Score: ' + this.score, {
+      fontSize: '24px',
+      fill: '#ffffff',
+      fontFamily: 'Arial'
+    });
+    finalScoreText.setOrigin(0.5);
+    finalScoreText.setScrollFactor(0); // Fixed to camera
+    finalScoreText.setDepth(1001);
+    
+    // Restart instruction
+    const restartText = this.add.text(WIDTH/2, HEIGHT/2 + 80, 'Press R to Restart', {
+      fontSize: '20px',
+      fill: '#ffff00',
+      fontFamily: 'Arial'
+    });
+    restartText.setOrigin(0.5);
+    restartText.setScrollFactor(0); // Fixed to camera
+    restartText.setDepth(1001);
+    
+    // Store references for cleanup
+    this.gameOverScreen = gameOverScreen;
+    this.gameOverTexts = [gameOverText, finalScoreText, restartText];
+    
+    // Add restart key listener
+    this.rKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R);
+    this.rKey.on('down', () => {
+      // Clean up game over screen
+      if (this.gameOverScreen) {
+        this.gameOverScreen.destroy();
+      }
+      if (this.gameOverTexts) {
+        this.gameOverTexts.forEach(text => text.destroy());
+      }
+      
+      // Reset game state
+      this.health = 3;
+      this.score = 0;
+      this.scoreText.setText('Score: ' + this.score);
+      
+      // Reset hearts
+      this.hearts.forEach(heart => heart.setVisible(true));
+      
+      // Reset player position
+      this.player.setPosition(WIDTH/2, HEIGHT/2);
+      
+      // Clear all enemies
+      this.enemies.children.each(enemy => {
+        enemy.setActive(false).setVisible(false);
+      });
+      this.triangleEnemies.children.each(triangle => {
+        triangle.setActive(false).setVisible(false);
+      });
+      this.pentagonPickups.children.each(pentagon => {
+        pentagon.setActive(false).setVisible(false);
+      });
+      
+      // Resume game
+      this.time.paused = false;
+      this.gameOver = false; // Reset game over flag
+      
+      // Reset abilities
+      this.canTeleport = true;
+      this.canExplode = true;
+      this.player.tint = this.readyPlayerColor;
+    });
   }
   
   // Flash player to show invulnerability
@@ -598,6 +744,7 @@ function explodeEnemies() {
   // Temporarily disable player-enemy collision
   this.physics.world.disable(this.player, this.enemies);
   this.physics.world.disable(this.player, this.triangleEnemies);
+  this.physics.world.disable(this.player, this.hexagonEnemies);
   
   // Create red explosion circle effect
   const explosion = this.add.graphics();
@@ -637,6 +784,20 @@ function explodeEnemies() {
     }
   });
   
+  // Also destroy hexagon enemies within radius
+  this.hexagonEnemies.children.each(hexagon => {
+    if (!hexagon.active) return;
+    
+    const dx = hexagon.x - playerX;
+    const dy = hexagon.y - playerY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    if (distance <= explosionRadius) {
+      hexagon.setActive(false).setVisible(false);
+      enemiesDestroyed++;
+    }
+  });
+  
   // Add points for enemies destroyed
   if (enemiesDestroyed > 0) {
     this.score += enemiesDestroyed;
@@ -649,8 +810,10 @@ function explodeEnemies() {
     callback: () => {
       this.physics.world.enable(this.player, this.enemies);
       this.physics.world.enable(this.player, this.triangleEnemies);
+      this.physics.world.enable(this.player, this.hexagonEnemies);
       this.physics.add.overlap(this.player, this.enemies, playerHitEnemy, null, this);
       this.physics.add.overlap(this.player, this.triangleEnemies, playerHitEnemy, null, this);
+      this.physics.add.overlap(this.player, this.hexagonEnemies, playerHitEnemy, null, this);
     }
   });
   
