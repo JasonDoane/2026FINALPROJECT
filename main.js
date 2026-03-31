@@ -10,6 +10,8 @@ const COLORS = [
 function preload() {
   // Load the explosion sound effect
   this.load.audio('explosion', 'assests/dragon-studio-nuclear-explosion-386181.mp3');
+  // Load background music
+  this.load.audio('bgMusic', 'assests/0331.MP3');
 }
 
 const config = {
@@ -139,6 +141,22 @@ function create() {
   // Explosion ability cooldown
   this.canExplode = true;
   this.explosionCooldown = 2000; // 2 second cooldown
+  
+  // Setup background music
+  this.bgMusic = this.sound.add('bgMusic', { loop: true, volume: 0.5 });
+  
+  // Add key listener to start music on first key press
+  this.musicStarted = false;
+  const startMusic = () => {
+    if (!this.musicStarted) {
+      this.musicStarted = true;
+      this.bgMusic.play();
+    }
+  };
+  
+  // Listen for any key press
+  this.input.keyboard.on('keydown', startMusic);
+  this.input.on('pointerdown', startMusic);
   
   // Score system
   this.score = 0;
